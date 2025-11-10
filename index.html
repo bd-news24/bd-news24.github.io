@@ -1,1 +1,189 @@
 
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>আমার নিউজ পোর্টাল</title>
+    <!-- Tailwind CSS CDN যোগ করা হয়েছে -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter ফন্ট ব্যবহার করা হয়েছে -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container {
+            max-width: 1280px;
+            margin: auto;
+            padding: 1.5rem;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- হেডার বা ন্যাভিগেশন বার -->
+    <header class="bg-white shadow-md sticky top-0 z-10">
+        <div class="container flex justify-between items-center py-4">
+            <h1 class="text-3xl font-bold text-red-600">নিউজ 24/7</h1>
+            <nav class="hidden md:flex space-x-6 text-gray-700">
+                <a href="#" class="hover:text-red-600 transition duration-150">হোম</a>
+                <a href="#" class="hover:text-red-600 transition duration-150">জাতীয়</a>
+                <a href="#" class="hover:text-red-600 transition duration-150">আন্তর্জাতিক</a>
+                <a href="#" class="hover:text-red-600 transition duration-150">খেলা</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- মূল কন্টেন্ট সেকশন -->
+    <main class="container py-8">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6 border-b-2 border-red-600 pb-2">সর্বশেষ খবর</h2>
+        
+        <!-- এখানে লোডিং স্পিনার -->
+        <div id="loading-spinner" class="flex justify-center items-center py-20 text-red-600">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-lg">খবর লোড হচ্ছে...</span>
+        </div>
+
+        <!-- নিউজ আর্টিকেলগুলো এই কন্টেনারে লোড হবে -->
+        <div id="news-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Dynamically populated by JavaScript -->
+        </div>
+
+        <!-- যদি কোনো খবর না পাওয়া যায় -->
+        <div id="no-news-message" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg shadow-md">
+            <p class="font-bold">দুঃখিত!</p>
+            <p>এই মুহূর্তে ডেটাবেস থেকে কোনো খবর পাওয়া যায়নি। ডেটাবেসটি চেক করুন।</p>
+        </div>
+    </main>
+
+    <!-- ফুটার -->
+    <footer class="bg-gray-800 text-white mt-12">
+        <div class="container py-6 text-center text-sm">
+            &copy; <span id="current-year"></span> আমার নিউজ পোর্টাল | ডেটা ফিড: Firebase Realtime DB
+        </div>
+    </footer>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        // 1. Firebase Configuration (আপনার দেওয়া তথ্য)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAlCABJj6zHt1AoZNmWY78ycRgYWdwBYPA",
+            authDomain: "news-cad02.firebaseapp.com",
+            databaseURL: "https://news-cad02-default-rtdb.firebaseio.com",
+            projectId: "news-cad02",
+            storageBucket: "news-cad02.firebasestorage.app",
+            messagingSenderId: "620806951302",
+            appId: "1:620806951302:web:04e77622afd95843e05c07",
+            measurementId: "G-Q23EGV1TEP"
+        };
+
+        // Firebase Initialize করা
+        firebase.initializeApp(firebaseConfig);
+
+        // Realtime Database-এর রেফারেন্স
+        const database = firebase.database();
+        
+        // সব HTML এলিমেন্টের রেফারেন্স
+        const newsContainer = document.getElementById('news-container');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const noNewsMessage = document.getElementById('no-news-message');
+
+        // ফুটারে বর্তমান বছর সেট করা
+        document.getElementById('current-year').textContent = new Date().getFullYear();
+
+        /**
+         * Realtime Database থেকে নিউজ ফেচ করার ফাংশন।
+         * আমরা ধরে নিচ্ছি Firebase DB-তে 'articles' নামে একটি মেইন নোড আছে।
+         * উদাহরণ ডেটা স্ট্রাকচার:
+         * {
+         * "articles": {
+         * "-Nf_oA4bNlTjVbFpYv0": {
+         * "title": "প্রথম আর্টিকেলের শিরোনাম",
+         * "summary": "এই হলো সংক্ষিপ্ত বর্ণনা...",
+         * "image_url": "https://placehold.co/600x400/333/fff?text=News+Image+1",
+         * "timestamp": 1678886400000 
+         * },
+         * // ... অন্যান্য আর্টিকেল
+         * }
+         * }
+         */
+        function fetchNews() {
+            // লোডিং শুরু
+            loadingSpinner.classList.remove('hidden');
+            newsContainer.innerHTML = '';
+            noNewsMessage.classList.add('hidden');
+
+            // 'articles' নোডে পরিবর্তন হলেই এই on() ফাংশনটি কল হবে
+            database.ref('articles').on('value', (snapshot) => {
+                // লোডিং শেষ
+                loadingSpinner.classList.add('hidden');
+                newsContainer.innerHTML = ''; // পুরোনো ডেটা সরিয়ে দেওয়া হলো
+
+                const newsData = snapshot.val();
+                const articles = [];
+
+                if (newsData) {
+                    // Firebase থেকে পাওয়া অবজেক্টকে অ্যারেতে কনভার্ট করা হচ্ছে
+                    for (let id in newsData) {
+                        articles.push({ id, ...newsData[id] });
+                    }
+
+                    // সর্বশেষ আর্টিকেলগুলো প্রথমে দেখানোর জন্য timestamp অনুযায়ী সাজানো
+                    articles.sort((a, b) => b.timestamp - a.timestamp);
+
+                    if (articles.length > 0) {
+                        articles.forEach(article => {
+                            // তারিখ এবং সময়কে পঠনযোগ্য ফরম্যাটে পরিবর্তন করা
+                            const date = new Date(article.timestamp).toLocaleDateString('bn-BD', {
+                                year: 'numeric', month: 'long', day: 'numeric'
+                            });
+                            const time = new Date(article.timestamp).toLocaleTimeString('bn-BD', {
+                                hour: '2-digit', minute: '2-digit'
+                            });
+
+                            const articleCard = `
+                                <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 overflow-hidden">
+                                    <img src="${article.image_url || 'https://placehold.co/600x400/F05050/ffffff?text=No+Image'}" 
+                                         alt="${article.title}" 
+                                         class="w-full h-48 object-cover"
+                                         onerror="this.onerror=null;this.src='https://placehold.co/600x400/F05050/ffffff?text=Image+Error';"
+                                    >
+                                    <div class="p-6">
+                                        <p class="text-xs text-gray-500 mb-2">
+                                            <span class="font-semibold text-red-600">প্রকাশিত:</span> ${date} at ${time}
+                                        </p>
+                                        <h3 class="text-xl font-bold text-gray-900 mb-3 hover:text-red-600 cursor-pointer">
+                                            ${article.title}
+                                        </h3>
+                                        <p class="text-gray-600 mb-4 text-sm leading-relaxed">${article.summary}</p>
+                                        <a href="#" class="inline-block text-red-600 font-medium hover:text-red-700 transition duration-150 border-b border-red-600">
+                                            বিস্তারিত পড়ুন →
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                            newsContainer.innerHTML += articleCard;
+                        });
+                    } else {
+                        noNewsMessage.classList.remove('hidden');
+                    }
+                } else {
+                    noNewsMessage.classList.remove('hidden');
+                }
+            });
+        }
+        
+        // উইন্ডো লোড হওয়ার পর ডেটা ফেচ শুরু
+        window.onload = fetchNews;
+    </script>
+
+</body>
+</html>
